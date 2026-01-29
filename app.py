@@ -4,6 +4,7 @@ import random
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,7 +12,10 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
 
-client = OpenAI()
+# Don't instantiate OpenAI() here without a configured http client —
+# constructing OpenAI will attempt to create an httpx.Client internally
+# and the installed httpx version may not accept the `proxies` kwarg.
+# We'll create an httpx.Client and pass it to OpenAI when initializing below.
 
 # Use threading mode to avoid async issues
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
@@ -20,7 +24,10 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise Exception("❌ OPENAI_API_KEY is missing in environment variables")
-client = OpenAI(api_key=api_key)
+# create a local httpx client and pass it into OpenAI to avoid
+# OpenAI trying to construct its own httpx.Client with incompatible kwargs
+http_client = httpx.Client()
+client = OpenAI(api_key=api_key, http_client=http_client)
 
 @app.route('/')
 def index():
